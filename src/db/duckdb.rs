@@ -1,4 +1,4 @@
-use duckdb::{Config, params};
+use duckdb::{params, Config};
 
 use uuid::Uuid;
 
@@ -21,11 +21,10 @@ impl DuckDB {
     }
 
     fn init_collections_table(&self) -> Result<(), DbError> {
-        self.conn
-            .execute(
-                "CREATE TABLE collections (uuid STRING, name STRING, metadata STRING)",
-                [],
-            )?;
+        self.conn.execute(
+            "CREATE TABLE collections (uuid STRING, name STRING, metadata STRING)",
+            [],
+        )?;
 
         Ok(())
     }
@@ -52,17 +51,17 @@ impl Db for DuckDB {
     }
 
     fn get_collection(&self, name: &str) -> Result<Option<Collection>, DbError> {
-        let mut sql = self.conn.prepare("SELECT * FROM collections WHERE name = ?")?;
-        let mut collections = sql.query_map([name], |row| {
-            Collection::try_from(row)
-        })?;
+        let mut sql = self
+            .conn
+            .prepare("SELECT * FROM collections WHERE name = ?")?;
+        let mut collections = sql.query_map([name], |row| Collection::try_from(row))?;
 
         match collections.next() {
             Some(res) => match res {
                 Ok(collection) => Ok(Some(collection)),
-                Err(e) => Err(e.into())
+                Err(e) => Err(e.into()),
             },
-            None => Ok(None)
+            None => Ok(None),
         }
     }
 
@@ -72,7 +71,10 @@ impl Db for DuckDB {
             name: name.to_string(),
         };
 
-        self.conn.execute("INSERT INTO collections (uuid, name, metadata) VALUES (?, ?, ?)", params![collection.uuid.urn().to_string(), collection.name, ""])?;
+        self.conn.execute(
+            "INSERT INTO collections (uuid, name, metadata) VALUES (?, ?, ?)",
+            params![collection.uuid.urn().to_string(), collection.name, ""],
+        )?;
 
         Ok(collection)
     }
@@ -80,15 +82,13 @@ impl Db for DuckDB {
     fn get_or_create_collection(&self, name: &str) -> Result<Collection, DbError> {
         match self.get_collection(name)? {
             Some(collection) => Ok(collection),
-            None => self.create_collection(name)
+            None => self.create_collection(name),
         }
     }
 
     fn list_collections(&self) -> Result<Vec<Collection>, DbError> {
         let mut stmt = self.conn.prepare("SELECT * FROM collections")?;
-        let rows = stmt.query_map([], |row| {
-            Collection::try_from(row)
-        })?;
+        let rows = stmt.query_map([], |row| Collection::try_from(row))?;
 
         let mut collections = vec![];
         for row in rows {
@@ -96,6 +96,43 @@ impl Db for DuckDB {
         }
 
         Ok(collections)
+    }
+
+    fn get_collection_uuid_from_name(&self, name: &str) -> Result<Option<Uuid>, DbError> {
+        match self.get_collection(name)? {
+            Some(collection) => Ok(Some(collection.uuid)),
+            None => Ok(None),
+        }
+    }
+
+    fn update_collection(&self, uuid: Uuid, new_name: &str) -> Result<Collection, DbError> {
+        match self.get_collection_uuid_from_name(new_name)? {
+            Some(collection_uuid) => {
+                if collection_uuid != uuid {
+                    return Err(DbError::UpdateError(String::from(
+                        "Collection with new name already exists",
+                    )));
+                }
+
+                self.conn.execute(
+                    "UPDATE collections SET name = ? WHERE uuid = ?",
+                    params![new_name, uuid.urn().to_string()],
+                )?;
+            }
+            None => {
+                self.conn.execute(
+                    "UPDATE collections SET name = ? WHERE uuid = ?",
+                    params![new_name, uuid.urn().to_string()],
+                )?;
+            }
+        };
+
+        match self.get_collection(new_name)? {
+            Some(updated_collection) => Ok(updated_collection),
+            None => Err(DbError::UpdateError(String::from(
+                "Failed to fetch updated collection",
+            ))),
+        }
     }
 }
 
@@ -122,14 +159,14 @@ mod tests {
     use crate::db::Db;
 
     use super::DuckDB;
-    
+
     #[test]
     pub fn test_create_collection() {
         let db = DuckDB::new(Default::default()).unwrap();
         db.init().unwrap();
 
         let name = "collection1";
-        
+
         let collection_create = db.create_collection(name).unwrap();
 
         let collection_get = db.get_collection(name).unwrap().unwrap();
@@ -153,5 +190,37 @@ mod tests {
         listed_collections.sort_by_cached_key(|c| c.uuid);
 
         assert_eq!(collections, listed_collections)
+    }
+
+    #[test]
+    pub fn test_get_collection_uuid_from_name() {
+        let db = DuckDB::new(Default::default()).unwrap();
+        db.init().unwrap();
+
+        let name = "collection1";
+
+        let collection_create_uuid = db.create_collection(name).unwrap().uuid;
+
+        let collection_get_uuid = db.get_collection(name).unwrap().unwrap().uuid;
+
+        assert_eq!(collection_create_uuid, collection_get_uuid);
+    }
+
+    #[test]
+    pub fn test_update_collection() {
+        let db = DuckDB::new(Default::default()).unwrap();
+        db.init().unwrap();
+
+        let name = "collection1";
+
+        let collection_create_uuid = db.create_collection(name).unwrap().uuid;
+        let new_name = "new_collection1";
+
+        let updated_collection = db
+            .update_collection(collection_create_uuid, new_name)
+            .unwrap();
+        let updated_name = updated_collection.name;
+
+        assert_eq!(new_name, updated_name);
     }
 }
