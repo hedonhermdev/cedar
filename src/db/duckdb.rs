@@ -2,7 +2,7 @@ use duckdb::{Config, params};
 
 use uuid::Uuid;
 
-use crate::collection::Collection;
+use crate::collection::{Collection, self};
 
 use super::{Db, DbError};
 
@@ -97,6 +97,33 @@ impl Db for DuckDB {
 
         Ok(collections)
     }
+
+    fn get_collection_uuid_from_name(&self, name: &str) -> Result<Option<Uuid>, DbError> {
+        match self.get_collection(name)? {
+            Some(collection) => Ok(Some(collection.uuid)),
+            None => Ok(None),
+        }
+    }
+
+    fn update_collection(&self, uuid: Uuid, new_name: &str) -> Result<Collection, DbError> {
+        match self.get_collection_uuid_from_name(new_name)? {
+            Some(collection_uuid) => {
+                if collection_uuid != uuid {
+                    return Err(DbError::UpdateError(String::from("Collection with new name already exists")));
+                }
+
+                self.conn.execute("UPDATE collections SET name = ? WHERE uuid = ?", params![new_name, uuid.urn().to_string()])?;
+            },
+            None => {
+                self.conn.execute("UPDATE collections SET name = ? WHERE uuid = ?", params![new_name, uuid.urn().to_string()])?;
+            }
+        };
+
+        match self.get_collection(new_name)? {
+            Some(updated_collection) => Ok(updated_collection),
+            None => Err(DbError::UpdateError(String::from("Failed to fetch updated collection"))),
+        }
+    } 
 }
 
 impl From<duckdb::Error> for DbError {
@@ -153,5 +180,35 @@ mod tests {
         listed_collections.sort_by_cached_key(|c| c.uuid);
 
         assert_eq!(collections, listed_collections)
+    }
+
+    #[test]
+    pub fn test_get_collection_uuid_from_name() {
+        let db = DuckDB::new(Default::default()).unwrap();
+        db.init().unwrap();
+
+        let name = "collection1";
+        
+        let collection_create_uuid = db.create_collection(name).unwrap().uuid;
+
+        let collection_get_uuid = db.get_collection(name).unwrap().unwrap().uuid;
+
+        assert_eq!(collection_create_uuid, collection_get_uuid);
+    }
+
+    #[test]
+    pub fn test_update_collection() {
+        let db = DuckDB::new(Default::default()).unwrap();
+        db.init().unwrap();
+
+        let name = "collection1";
+
+        let collection_create_uuid = db.create_collection(name).unwrap().uuid;
+        let new_name = "new_collection1";
+
+        let updated_collection = db.update_collection(collection_create_uuid, new_name).unwrap();
+        let updated_name = updated_collection.name;
+        
+        assert_eq!(new_name, updated_name);
     }
 }
