@@ -2,7 +2,7 @@ use duckdb::{Config, params};
 
 use uuid::Uuid;
 
-use crate::collection::{Collection, self};
+use crate::collection::Collection;
 
 use super::{Db, DbError};
 
