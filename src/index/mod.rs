@@ -25,8 +25,6 @@ impl<T> Index<T> {
     pub fn new() -> Self {
         let idx: Hnsw<Euclidean, T, Pcg64, 24, 48> = Hnsw::new_params(Euclidean, Params::new());
 
-        Self {
-            idx
-        }
+        Self { idx }
     }
 }
