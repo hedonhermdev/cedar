@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use hnsw::{Hnsw, Params};
 use rand_pcg::Pcg64;
 use space::Metric;

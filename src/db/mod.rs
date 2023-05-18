@@ -1,5 +1,3 @@
-use crate::collection::Collection;
-
 pub mod duckdb;
 mod model;
 
@@ -13,7 +11,11 @@ pub trait Db {
     fn get_or_create_collection(&self, name: &str) -> Result<CollectionModel, DbError>;
     fn list_collections(&self) -> Result<Vec<CollectionModel>, DbError>;
     fn get_collection_uuid_from_name(&self, name: &str) -> Result<Option<uuid::Uuid>, DbError>;
-    fn update_collection(&self, uuid: uuid::Uuid, new_name: &str) -> Result<CollectionModel, DbError>;
+    fn update_collection(
+        &self,
+        uuid: uuid::Uuid,
+        new_name: &str,
+    ) -> Result<CollectionModel, DbError>;
 }
 
 #[derive(thiserror::Error, Debug)]

@@ -2,9 +2,7 @@ use duckdb::{params, Config};
 
 use uuid::Uuid;
 
-use crate::collection::Collection;
-
-use super::{Db, DbError, model::CollectionModel};
+use super::{model::CollectionModel, Db, DbError};
 
 pub type DuckDBConfig = duckdb::Config;
 
