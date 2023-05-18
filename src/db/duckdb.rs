@@ -4,10 +4,11 @@ use uuid::Uuid;
 
 use crate::collection::Collection;
 
-use super::{Db, DbError};
+use super::{Db, DbError, model::CollectionModel};
 
 pub type DuckDBConfig = duckdb::Config;
 
+#[derive(Debug)]
 pub struct DuckDB {
     conn: duckdb::Connection,
 }
@@ -50,11 +51,11 @@ impl Db for DuckDB {
         Ok(())
     }
 
-    fn get_collection(&self, name: &str) -> Result<Option<Collection>, DbError> {
+    fn get_collection(&self, name: &str) -> Result<Option<CollectionModel>, DbError> {
         let mut sql = self
             .conn
             .prepare("SELECT * FROM collections WHERE name = ?")?;
-        let mut collections = sql.query_map([name], |row| Collection::try_from(row))?;
+        let mut collections = sql.query_map([name], |row| CollectionModel::try_from(row))?;
 
         match collections.next() {
             Some(res) => match res {
@@ -65,30 +66,31 @@ impl Db for DuckDB {
         }
     }
 
-    fn create_collection(&self, name: &str) -> Result<Collection, DbError> {
-        let collection = Collection {
+    fn create_collection(&self, name: &str) -> Result<CollectionModel, DbError> {
+        let collection = CollectionModel {
             uuid: Uuid::new_v4(),
             name: name.to_string(),
+            metadata: "".into(),
         };
 
         self.conn.execute(
             "INSERT INTO collections (uuid, name, metadata) VALUES (?, ?, ?)",
-            params![collection.uuid.urn().to_string(), collection.name, ""],
+            params![collection.uuid.urn().to_string(), name, ""],
         )?;
 
         Ok(collection)
     }
 
-    fn get_or_create_collection(&self, name: &str) -> Result<Collection, DbError> {
+    fn get_or_create_collection(&self, name: &str) -> Result<CollectionModel, DbError> {
         match self.get_collection(name)? {
             Some(collection) => Ok(collection),
             None => self.create_collection(name),
         }
     }
 
-    fn list_collections(&self) -> Result<Vec<Collection>, DbError> {
+    fn list_collections(&self) -> Result<Vec<CollectionModel>, DbError> {
         let mut stmt = self.conn.prepare("SELECT * FROM collections")?;
-        let rows = stmt.query_map([], |row| Collection::try_from(row))?;
+        let rows = stmt.query_map([], |row| CollectionModel::try_from(row))?;
 
         let mut collections = vec![];
         for row in rows {
@@ -105,7 +107,7 @@ impl Db for DuckDB {
         }
     }
 
-    fn update_collection(&self, uuid: Uuid, new_name: &str) -> Result<Collection, DbError> {
+    fn update_collection(&self, uuid: Uuid, new_name: &str) -> Result<CollectionModel, DbError> {
         match self.get_collection_uuid_from_name(new_name)? {
             Some(collection_uuid) => {
                 if collection_uuid != uuid {
@@ -142,14 +144,15 @@ impl From<duckdb::Error> for DbError {
     }
 }
 
-impl TryFrom<&duckdb::Row<'_>> for Collection {
+impl TryFrom<&duckdb::Row<'_>> for CollectionModel {
     type Error = duckdb::Error;
 
     fn try_from(row: &duckdb::Row) -> Result<Self, Self::Error> {
         let uuid: String = row.get(0)?;
-        Ok(Collection {
+        Ok(CollectionModel {
             uuid: Uuid::parse_str(&uuid).expect("invalid UUID found in database"),
             name: row.get(1)?,
+            metadata: "".into(),
         })
     }
 }

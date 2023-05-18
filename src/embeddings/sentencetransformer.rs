@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use rust_bert::pipelines::sentence_embeddings::{
     SentenceEmbeddingsBuilder, SentenceEmbeddingsModel, SentenceEmbeddingsModelType::AllMiniLmL6V2,
 };
@@ -8,6 +10,12 @@ use super::{EmbeddingError, EmbeddingFunction};
 
 pub struct SentenceTransformerEmbeddings {
     model: SentenceEmbeddingsModel,
+}
+
+impl Debug for SentenceTransformerEmbeddings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SentenceTransformerEmbeddings").finish()
+    }
 }
 
 impl SentenceTransformerEmbeddings {
