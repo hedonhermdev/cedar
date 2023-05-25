@@ -30,12 +30,9 @@ impl SentenceTransformerEmbeddings {
 }
 
 impl EmbeddingFunction for SentenceTransformerEmbeddings {
-    fn embed<S: AsRef<str> + Sync>(
-        self,
-        docs: &Documents<S>,
-    ) -> Result<Embeddings, EmbeddingError> {
+    fn embed<S: AsRef<str> + Sync>(self, texts: &[S]) -> Result<Embeddings, EmbeddingError> {
         self.model
-            .encode(&docs)
+            .encode(texts)
             .map_err(|e| EmbeddingError { err: e.into() })
     }
 }

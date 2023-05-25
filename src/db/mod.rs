@@ -1,7 +1,7 @@
 pub mod duckdb;
 mod model;
 
-use model::CollectionModel;
+pub use model::CollectionModel;
 
 pub trait Db {
     fn init(&self) -> Result<(), DbError>;

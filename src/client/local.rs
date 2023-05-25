@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use crate::{collection::Collection, db::Db, embeddings::EmbeddingFunction};
+use crate::{
+    collection::Collection,
+    db::{CollectionModel, Db},
+    embeddings::EmbeddingFunction,
+    index::Index,
+};
 
 use super::{Client, ClientError};
 
@@ -26,8 +31,8 @@ where
 {
     pub fn init(db: D, embedding_fn: E) -> Result<Self, ClientError> {
         Ok(Self {
-            db: db.into(),
-            embedding_fn: embedding_fn.into(),
+            db: Arc::new(db),
+            embedding_fn: Arc::new(embedding_fn),
         }
         .into())
     }
@@ -40,27 +45,14 @@ where
     LocalClient<D, E>: Clone,
 {
     fn create_collection(&mut self, name: &str) -> Result<Collection, ClientError> {
-        let client = Box::new(self.clone());
         let model = self.db.create_collection(name)?;
-        let collection = Collection {
-            name: model.name,
-            uuid: model.uuid,
-            client,
-        };
 
-        Ok(collection)
+        Ok(collection_model_to_instance(self.clone(), model))
     }
 
     fn get_collection(&self, name: &str) -> Result<Option<Collection>, ClientError> {
         Ok(match self.db.get_collection(name)? {
-            Some(model) => {
-                let client = Box::new(self.clone());
-                Some(Collection {
-                    name: model.name,
-                    uuid: model.uuid,
-                    client,
-                })
-            }
+            Some(model) => Some(collection_model_to_instance(self.clone(), model)),
             None => None,
         })
     }
@@ -72,6 +64,19 @@ where
             .into_iter()
             .map(|c| c.name)
             .collect())
+    }
+}
+
+fn collection_model_to_instance<D: Db + 'static, E: EmbeddingFunction + 'static>(
+    client: LocalClient<D, E>,
+    model: CollectionModel,
+) -> Collection {
+    let client = Box::new(client);
+    Collection {
+        client,
+        index: Index::new(),
+        uuid: model.uuid,
+        name: model.name,
     }
 }
 

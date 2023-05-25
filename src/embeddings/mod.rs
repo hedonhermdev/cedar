@@ -1,11 +1,10 @@
-use crate::{Documents, Embeddings};
+use crate::Embeddings;
 
 pub mod openai;
 pub mod sentencetransformer;
 
 pub trait EmbeddingFunction {
-    fn embed<S: AsRef<str> + Sync>(self, docs: &Documents<S>)
-        -> Result<Embeddings, EmbeddingError>;
+    fn embed<S: AsRef<str> + Sync>(self, texts: &[S]) -> Result<Embeddings, EmbeddingError>;
 }
 
 #[derive(thiserror::Error, Debug)]

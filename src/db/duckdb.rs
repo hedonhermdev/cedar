@@ -1,6 +1,8 @@
-use duckdb::{params, Config};
+use duckdb::{params, types::FromSql, Config};
 
 use uuid::Uuid;
+
+use crate::Embedding;
 
 use super::{model::CollectionModel, Db, DbError};
 

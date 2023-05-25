@@ -2,10 +2,11 @@ use std::fmt::Debug;
 
 use serde_json::Value;
 
-use crate::{client::Client, Documents, Embeddings};
+use crate::{client::Client, index::Index, Documents, Embeddings};
 
 pub struct Collection {
     pub(crate) client: Box<dyn Client>,
+    pub(crate) index: Index,
     pub(crate) uuid: uuid::Uuid,
     pub(crate) name: String,
 }
@@ -20,18 +21,18 @@ impl Debug for Collection {
 }
 
 impl Collection {
-    pub fn add_embeddings(_embeddings: Embeddings) -> Result<(), CollectionError> {
+    pub fn add_embeddings(&mut self, _embeddings: Embeddings) -> Result<(), CollectionError> {
         todo!()
     }
 
-    pub fn add_documents<S>(_documents: Documents<S>) -> Result<(), CollectionError> {
+    pub fn add_documents(&mut self, _documents: Documents) -> Result<(), CollectionError> {
         todo!()
     }
 
-    pub fn query<'a, S>(
+    pub fn query<'a>(
         _queries: &'a [&'a str],
         _filter: Value,
-    ) -> Result<Documents<S>, CollectionError> {
+    ) -> Result<Documents, CollectionError> {
         todo!()
     }
 }

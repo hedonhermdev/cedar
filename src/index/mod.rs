@@ -1,28 +1,29 @@
-use hnsw::{Hnsw, Params};
-use rand_pcg::Pcg64;
-use space::Metric;
+use hnsw_rs::{hnsw::Hnsw, hnswio::*, prelude::*};
 
-struct Euclidean;
-impl Metric<&[f32]> for Euclidean {
-    type Unit = u32;
-    fn distance(&self, a: &&[f32], b: &&[f32]) -> u32 {
-        a.iter()
-            .zip(b.iter())
-            .map(|(&a, &b)| (a - b).powi(2))
-            .sum::<f32>()
-            .sqrt()
-            .to_bits()
-    }
+use crate::{embeddings, Embedding};
+
+pub struct Index {
+    idx: Hnsw<f32, DistCosine>,
 }
 
-struct Index<T> {
-    idx: Hnsw<Euclidean, T, Pcg64, 24, 48>,
+pub struct IndexEntry {
+    e: Embedding,
+    id: usize,
 }
 
-impl<T> Index<T> {
+impl Index {
     pub fn new() -> Self {
-        let idx: Hnsw<Euclidean, T, Pcg64, 24, 48> = Hnsw::new_params(Euclidean, Params::new());
+        let idx = Hnsw::new(16, 100, 16, 200, DistCosine {});
 
         Self { idx }
+    }
+
+    pub fn add(&mut self, entry: IndexEntry) {
+        self.idx.insert((&entry.e, entry.id));
+    }
+
+    pub fn nearest_k(&mut self, embedding: Embedding, k: usize) {
+        // TODO: magic number 30
+        self.idx.search(&embedding, k, 30);
     }
 }
