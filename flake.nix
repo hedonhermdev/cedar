@@ -32,6 +32,19 @@
         };
         craneLib = (crane.mkLib pkgs).overrideToolchain rustNightly;
 
+        cedarPackage = craneLib.buildPackage {
+          inherit src;
+          nativeBuildInputs = with pkgs; [
+            rustNightly
+            pkg-config
+            openssl
+            python310Packages.torch
+            duckdb
+          ];
+          doCheck = true;
+        };
+
+        LD_LIBRARY_PATH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
         src = ./.;
       in
       {
@@ -43,6 +56,12 @@
             python310Packages.torch
             duckdb
           ];
+          LD_LIBRARY_PATH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
+        };
+
+        packages = {
+          default = cedarPackage;
+          cedar = cedarPackage;
         };
       });
 }
