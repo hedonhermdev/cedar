@@ -21,13 +21,19 @@
     in
     flake-utils.lib.eachSystem supportedSystems (system:
       let
-        pkgs = import nixpkgs {
+        pkgs = if system == "x86_64-linux" then import nixpkgs {
           inherit system;
           overlays = [ (import rust-overlay) ];
 		  config = {
 		  	allowUnfree = true;
 			cudaSupport = true;
 		  };
+        } else import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) ];
+          config = {
+            allowUnfree = true;
+          };
         };
 
         rustNightly = pkgs.rust-bin.nightly.${nightlyVersion}.default.override {
@@ -59,8 +65,7 @@
             openssl
             python310Packages.torch
             duckdb
-			cudatoolkit
-          ];
+          ] ++ (if system == "x86_64-linux" then [ pkgs.cudatoolkit ] else []);
           LD_LIBRARY_PATH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
         };
 
