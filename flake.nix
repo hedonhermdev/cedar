@@ -24,6 +24,10 @@
         pkgs = import nixpkgs {
           inherit system;
           overlays = [ (import rust-overlay) ];
+		  config = {
+		  	allowUnfree = true;
+			cudaSupport = true;
+		  };
         };
 
         rustNightly = pkgs.rust-bin.nightly.${nightlyVersion}.default.override {
@@ -55,6 +59,7 @@
             openssl
             python310Packages.torch
             duckdb
+			cudatoolkit
           ];
           LD_LIBRARY_PATH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
         };
