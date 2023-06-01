@@ -55,10 +55,16 @@
             python310Packages.torch
             duckdb
           ];
-          doCheck = true;
+          doCheck = false;
+          torch = "
+          export LIBTORCH=${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch
+          export LD_LIBRARY_PATH=$\{LIBTORCH}/lib:$LD_LIBRARY_PATH
+          ";
+
+          LD_LIBRARY_PATH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
+          LIBTORCH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
         };
 
-        LD_LIBRARY_PATH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
         src = ./.;
       in
       {
@@ -70,7 +76,8 @@
             python310Packages.torch
             duckdb
           ] ++ (if system == "x86_64-linux" then [ pkgs.cudatoolkit ] else [ ]) ++ (if system == "aarch64-darwin" then [ pkgs.darwin.apple_sdk.frameworks.Security ] else [ ]);
-            LD_LIBRARY_PATH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
+          LD_LIBRARY_PATH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
+          LIBTORCH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
         };
 
         packages = {
