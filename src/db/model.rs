@@ -6,3 +6,10 @@ pub struct CollectionModel {
     pub(crate) uuid: Uuid,
     pub(crate) metadata: serde_json::Value,
 }
+
+pub struct EmbeddingModel {
+    pub(crate) embedding: Vec<f32>,
+    pub (crate) uuid: Uuid,
+    pub (crate) metadata: serde_json::Value,
+    pub (crate) text: String
+}

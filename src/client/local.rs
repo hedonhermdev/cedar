@@ -24,6 +24,34 @@ impl<D: Db, E: EmbeddingFunction> Clone for LocalClient<D, E> {
     }
 }
 
+pub struct LocalClientBuilder<D: Db, E: EmbeddingFunction> {
+    db: Option<D>,
+    embedding_fn: Option<E>,
+}
+
+impl<D: Db, E: EmbeddingFunction> LocalClientBuilder<D, E> {
+    pub fn new() -> Self {
+        Self {
+            db: None,
+            embedding_fn: None,
+        }
+    }
+
+    pub fn db(mut self, db: D) -> Self {
+        self.db = Some(db);
+        self
+    }
+
+    pub fn embedding_fn(mut self, f: E) -> Self {
+        self.embedding_fn = Some(f);
+        self
+    }
+
+    pub fn build(self) -> LocalClient<D, E> {
+        todo!()
+    }
+}
+
 impl<D, E> LocalClient<D, E>
 where
     D: Db,
@@ -77,18 +105,19 @@ fn collection_model_to_instance<D: Db + 'static, E: EmbeddingFunction + 'static>
         index: Index::new(),
         uuid: model.uuid,
         name: model.name,
+        dim: None
     }
 }
 
 #[cfg(test)]
 mod test {
     use crate::{
+        client::local::LocalClient,
         db::{duckdb::DuckDB, Db},
         embeddings::sentencetransformer::SentenceTransformerEmbeddings,
     };
 
     use super::Client;
-    use super::LocalClient;
 
     #[test]
     pub fn test_create_collection_local() {

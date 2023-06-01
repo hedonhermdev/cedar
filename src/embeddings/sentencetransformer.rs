@@ -4,7 +4,7 @@ use rust_bert::pipelines::sentence_embeddings::{
     SentenceEmbeddingsBuilder, SentenceEmbeddingsModel, SentenceEmbeddingsModelType::AllMiniLmL6V2,
 };
 
-use crate::{Documents, Embeddings};
+use crate::Embedding;
 
 use super::{EmbeddingError, EmbeddingFunction};
 
@@ -30,9 +30,10 @@ impl SentenceTransformerEmbeddings {
 }
 
 impl EmbeddingFunction for SentenceTransformerEmbeddings {
-    fn embed<S: AsRef<str> + Sync>(self, texts: &[S]) -> Result<Embeddings, EmbeddingError> {
+    fn embed<S: AsRef<str> + Sync>(self, texts: &[S]) -> Result<Vec<Embedding>, EmbeddingError> {
         self.model
             .encode(texts)
+            .map(|v| v.into_iter().map(|x| Into::<Embedding>::into(x)).collect())
             .map_err(|e| EmbeddingError { err: e.into() })
     }
 }
@@ -48,6 +49,6 @@ mod test {
         let embeddingfn = SentenceTransformerEmbeddings::new();
 
         let embeddings = &embeddingfn.embed(&docs).unwrap()[0];
-        assert_eq!(embeddings.len(), 384);
+        assert_eq!(embeddings.dim(), 384);
     }
 }

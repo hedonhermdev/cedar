@@ -1,6 +1,6 @@
-use hnsw_rs::{hnsw::Hnsw, hnswio::*, prelude::*};
+use hnsw_rs::{hnsw::Hnsw, prelude::*};
 
-use crate::{embeddings, Embedding};
+use crate::Embedding;
 
 pub struct Index {
     idx: Hnsw<f32, DistCosine>,
@@ -19,11 +19,11 @@ impl Index {
     }
 
     pub fn add(&mut self, entry: IndexEntry) {
-        self.idx.insert((&entry.e, entry.id));
+        self.idx.insert((entry.e.get(), entry.id));
     }
 
     pub fn nearest_k(&mut self, embedding: Embedding, k: usize) {
         // TODO: magic number 30
-        self.idx.search(&embedding, k, 30);
+        self.idx.search(&embedding.get(), k, 30);
     }
 }

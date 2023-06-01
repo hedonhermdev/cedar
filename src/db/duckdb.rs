@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::Embedding;
 
-use super::{model::CollectionModel, Db, DbError};
+use super::{model::{CollectionModel, EmbeddingModel}, Db, DbError};
 
 pub type DuckDBConfig = duckdb::Config;
 
@@ -32,10 +32,10 @@ impl DuckDB {
 
     fn init_embeddings_table(&self) -> Result<(), DbError> {
         self.conn
-            .execute(
-                "CREATE TABLE embeddings (collection_uuid STRING, uuid STRING, embedding DOUBLE[], document STRING, id STRING, metadata STRING)",
-                []
-            )?;
+        .execute(
+            "CREATE TABLE embeddings (collection_uuid STRING, uuid STRING, embedding JSON, text STRING, metadata STRING)",
+            []
+        )?;
 
         Ok(())
     }
@@ -136,6 +136,35 @@ impl Db for DuckDB {
             ))),
         }
     }
+
+    fn add_embeddings(&self, collection_uuid: Uuid, embeddings: Vec<EmbeddingModel>) -> Result<(), DbError> {
+        let mut stmt = self.conn.prepare("INSERT INTO embeddings (collection_uuid, uuid, embedding, metadata, text) VALUES (?,?,?,?,?)")?;
+
+        
+        embeddings.iter().try_for_each(|e| {
+            let v = params![collection_uuid.urn().to_string(), e.uuid.urn().to_string(), serde_json::ser::to_vec(&e.embedding).expect("failed to serialize vec"), e.metadata, e.text];
+
+            stmt.execute(v)?;
+
+            Ok::<(), DbError>(())
+        })?;
+        
+        Ok(())
+    }
+
+    fn count_embeddings(&self, collection_uuid: Uuid) -> Result<usize, DbError> {
+        let mut stmt = self.conn.prepare("SELECT COUNT() FROM embeddings WHERE collection_uuid = ?")?;
+
+        Ok(stmt.query_row(params![collection_uuid.urn().to_string()], |row| row.get(0))?)
+    }
+
+    fn reset(&self) -> Result<(), DbError> {
+        todo!()
+    }
+
+    fn persist(&self) -> Result<(), DbError> {
+        todo!()
+    }
 }
 
 impl From<duckdb::Error> for DbError {
@@ -159,7 +188,9 @@ impl TryFrom<&duckdb::Row<'_>> for CollectionModel {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::Db;
+    use uuid::Uuid;
+
+    use crate::db::{Db, model::EmbeddingModel};
 
     use super::DuckDB;
 
@@ -225,5 +256,48 @@ mod tests {
         let updated_name = updated_collection.name;
 
         assert_eq!(new_name, updated_name);
+    }
+
+    #[test]
+    pub fn test_add_embeddings() {
+        let db = DuckDB::new(Default::default()).unwrap();
+
+        db.init().unwrap();
+
+        let collection = db.create_collection("collection1").unwrap();
+        let collection_uuid = collection.uuid;
+        
+        let e_model = EmbeddingModel {
+            embedding: vec![0.0; 384],
+            uuid: Uuid::new_v4(),
+            metadata: serde_json::json!({"id": "102"}),
+            text: "hello, this is a sentence".to_string()
+        };
+
+        db.add_embeddings(collection_uuid, vec![e_model]).unwrap();
+    }
+
+    #[test]
+    pub fn test_count_embeddings() {
+        let db = DuckDB::new(Default::default()).unwrap();
+
+        db.init().unwrap();
+
+        let collection = db.create_collection("collection1").unwrap();
+        let collection_uuid = collection.uuid;
+        dbg!(collection_uuid);
+        
+        assert_eq!(0, db.count_embeddings(collection_uuid).unwrap());
+        
+        let e_model = EmbeddingModel {
+            embedding: vec![0.0; 384],
+            uuid: Uuid::new_v4(),
+            metadata: serde_json::json!({"id": "102"}),
+            text: "hello, this is a sentence".to_string()
+        };
+
+        db.add_embeddings(collection_uuid, vec![e_model]).unwrap();
+
+        assert_eq!(1, db.count_embeddings(collection_uuid).unwrap());
     }
 }
