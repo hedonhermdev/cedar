@@ -21,20 +21,24 @@
     in
     flake-utils.lib.eachSystem supportedSystems (system:
       let
-        pkgs = if system == "x86_64-linux" then import nixpkgs {
-          inherit system;
-          overlays = [ (import rust-overlay) ];
-		  config = {
-		  	allowUnfree = true;
-			cudaSupport = true;
-		  };
-        } else import nixpkgs {
-          inherit system;
-          overlays = [ (import rust-overlay) ];
-          config = {
-            allowUnfree = true;
-          };
-        };
+        pkgs =
+          if system == "x86_64-linux" then
+            import nixpkgs
+              {
+                inherit system;
+                overlays = [ (import rust-overlay) ];
+                config = {
+                  allowUnfree = true;
+                  cudaSupport = true;
+                };
+              } else
+            import nixpkgs {
+              inherit system;
+              overlays = [ (import rust-overlay) ];
+              config = {
+                allowUnfree = true;
+              };
+            };
 
         rustNightly = pkgs.rust-bin.nightly.${nightlyVersion}.default.override {
           extensions = [ "rust-src" "rust-analyzer-preview" ];
@@ -65,8 +69,8 @@
             openssl
             python310Packages.torch
             duckdb
-          ] ++ (if system == "x86_64-linux" then [ pkgs.cudatoolkit ] else []);
-          LD_LIBRARY_PATH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
+          ] ++ (if system == "x86_64-linux" then [ pkgs.cudatoolkit ] else [ ]) ++ (if system == "aarch64-darwin" then [ pkgs.darwin.apple_sdk.frameworks.Security ] else [ ]);
+            LD_LIBRARY_PATH = "${pkgs.python310Packages.torch}/lib/python3.10/site-packages/torch";
         };
 
         packages = {

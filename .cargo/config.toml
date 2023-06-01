@@ -1,3 +1,0 @@
-[env]
-LIBTORCH = { value = "torch" , relative = true }
-LD_LIBRARY_PATH = { value = "torch/lib" , relative = true }

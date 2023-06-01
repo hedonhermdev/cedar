@@ -105,7 +105,7 @@ fn collection_model_to_instance<D: Db + 'static, E: EmbeddingFunction + 'static>
         index: Index::new(),
         uuid: model.uuid,
         name: model.name,
-        dim: None
+        dim: None,
     }
 }
 

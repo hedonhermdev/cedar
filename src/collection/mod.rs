@@ -1,8 +1,12 @@
-use std::{fmt::{Debug, Display}, hash::Hash, collections::HashSet};
+use std::{
+    collections::HashSet,
+    fmt::{Debug, Display},
+    hash::Hash,
+};
 
 use serde_json::Value;
 
-use crate::{client::Client, index::Index, Documents, Document, Embedding};
+use crate::{client::Client, index::Index, Document, Documents, Embedding};
 
 pub struct Collection {
     pub(crate) client: Box<dyn Client>,
@@ -51,13 +55,26 @@ impl Collection {
 }
 
 fn validate_documents(docs: &[Document]) -> Result<(), CollectionError> {
-    has_dups(docs.iter().map(|d| d.id)).then_some(()).ok_or(CollectionError::DuplicateError)
+    has_dups(docs.iter().map(|d| d.id))
+        .then_some(())
+        .ok_or(CollectionError::DuplicateError)
 }
 
-fn validate_embeddings(embeddings: &[Embedding], dim: Option<usize>) -> Result<(), CollectionError> {
+fn validate_embeddings(
+    embeddings: &[Embedding],
+    dim: Option<usize>,
+) -> Result<(), CollectionError> {
     match dim {
-        Some(dim) => embeddings.iter().all(|e| e.dim() == dim).then_some(()).ok_or(CollectionError::DimensionError),
-        None => embeddings.iter().all(|e| e.dim() == embeddings[0].dim()).then_some(()).ok_or(CollectionError::DimensionError),
+        Some(dim) => embeddings
+            .iter()
+            .all(|e| e.dim() == dim)
+            .then_some(())
+            .ok_or(CollectionError::DimensionError),
+        None => embeddings
+            .iter()
+            .all(|e| e.dim() == embeddings[0].dim())
+            .then_some(())
+            .ok_or(CollectionError::DimensionError),
     }
 }
 

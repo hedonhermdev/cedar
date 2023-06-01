@@ -20,7 +20,7 @@ impl Embedding {
         self.e.len()
     }
 
-    pub fn get(&self) -> &Vec<f32>{
+    pub fn get(&self) -> &Vec<f32> {
         &self.e
     }
 

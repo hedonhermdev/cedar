@@ -22,9 +22,12 @@ pub trait Db {
         new_name: &str,
     ) -> Result<CollectionModel, DbError>;
 
-    fn add_embeddings(&self, collection_uuid: Uuid, embeddings: Vec<EmbeddingModel>) -> Result<(), DbError>;
+    fn add_embeddings(
+        &self,
+        collection_uuid: Uuid,
+        embeddings: Vec<EmbeddingModel>,
+    ) -> Result<(), DbError>;
     fn count_embeddings(&self, collection_uuid: Uuid) -> Result<usize, DbError>;
-
 }
 
 #[derive(thiserror::Error, Debug)]
