@@ -8,9 +8,9 @@ edition = "2021"
 [dependencies]
 duckdb = { version = "0.7.1", features = ["serde_json"]}
 openai-api-rs = "0.1.7"
-rust-bert = { git = "https://github.com/guillaume-be/rust-bert", branch = "master" }
+rust-bert = { git = "https://github.com/guillaume-be/rust-bert", branch = "main" }
 thiserror = "1.0.40"
-tch = "0.12"
+tch = "0.13"
 uuid = { version = "1.3.2", features = ["v4", "fast-rng"] }
 serde_json = "1.0.96"
 hora = "0.1.1"
