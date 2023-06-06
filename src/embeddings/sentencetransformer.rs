@@ -30,9 +30,9 @@ impl SentenceTransformerEmbeddings {
 }
 
 impl EmbeddingFunction for SentenceTransformerEmbeddings {
-    fn embed<I, S: AsRef<str> + Sync>(&self, texts: I) -> Result<Vec<Embedding>, EmbeddingError> 
-    where 
-    I: IntoIterator<Item = S>
+    fn embed<I, S: AsRef<str> + Sync>(&self, texts: I) -> Result<Vec<Embedding>, EmbeddingError>
+    where
+        I: IntoIterator<Item = S>,
     {
         self.model
             .encode(&texts.into_iter().collect::<Vec<_>>())

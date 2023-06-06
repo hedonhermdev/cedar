@@ -31,13 +31,14 @@ pub trait Db {
     ) -> Result<(), DbError>;
     fn count_embeddings(&self, collection_uuid: Uuid) -> Result<usize, DbError>;
 
-    fn get_embeddings(
+    fn get_embeddings(&self, collection_uuid: Uuid) -> Result<Vec<EmbeddingModel>, DbError>;
+
+    fn query(
         &self,
         collection_uuid: Uuid,
-    ) -> Result<Vec<EmbeddingModel>, DbError>;
-
-    fn query(&self, collection_uuid: Uuid, embeddings: &[Embedding], k: usize) -> Result<Vec<Vec<QueryResult>>, DbError>;
-
+        embeddings: &[Embedding],
+        k: usize,
+    ) -> Result<Vec<Vec<QueryResult>>, DbError>;
 }
 
 #[derive(thiserror::Error, Debug)]

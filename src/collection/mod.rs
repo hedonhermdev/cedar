@@ -4,9 +4,13 @@ use std::{
     hash::Hash,
 };
 
-use serde_json::Value;
 
-use crate::{client::{Client, ClientError}, index::Index, Document, Embedding, QueryResult};
+
+use crate::{
+    client::{Client, ClientError},
+    index::Index,
+    Document, Embedding, QueryResult,
+};
 
 pub struct Collection {
     pub(crate) client: Box<dyn Client>,
@@ -94,7 +98,7 @@ pub enum CollectionError {
     DimensionError,
 
     #[error("Client operation failed: {0}")]
-    ClientError(#[from] ClientError)
+    ClientError(#[from] ClientError),
 }
 
 #[cfg(test)]
@@ -102,7 +106,12 @@ mod test {
     use serde_json::json;
     use uuid::Uuid;
 
-    use crate::{client::{local::LocalClient, Client}, db::{duckdb::DuckDB, Db}, embeddings::sentencetransformer::SentenceTransformerEmbeddings, Document};
+    use crate::{
+        client::{local::LocalClient, Client},
+        db::{duckdb::DuckDB, Db},
+        embeddings::sentencetransformer::SentenceTransformerEmbeddings,
+        Document,
+    };
 
     #[test]
     pub fn test_collection() {
@@ -110,18 +119,21 @@ mod test {
         db.init().unwrap();
 
         let embedding_fn = SentenceTransformerEmbeddings::new();
-        
+
         let mut client = LocalClient::init(db, embedding_fn).unwrap();
 
         let mut collection = client.create_collection("collection1").unwrap();
 
-        let docs = vec![
-            Document { text: "hello world!".to_string(), metadata: json!({}), id: Uuid::new_v4() }
-        ];
+        let docs = vec![Document {
+            text: "hello world!".to_string(),
+            metadata: json!({}),
+            id: Uuid::new_v4(),
+        }];
 
         collection.add_documents(&docs).unwrap();
 
         let res = collection.query_documents(&["hello"], 1).unwrap();
+        assert_eq!(res[0][0].text, docs[0].text);
 
         dbg!(res);
     }

@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::{
     collection::Collection,
-    db::{CollectionModel, Db, model::EmbeddingModel},
+    db::{model::EmbeddingModel, CollectionModel, Db},
     embeddings::EmbeddingFunction,
     index::Index,
     Document, Embedding, QueryResult,
@@ -79,14 +79,13 @@ where
             .embed(docs.iter().map(|doc| doc.text()))?
             .into_iter()
             .zip(docs.iter())
-            .map(|(e, doc)| {
-                EmbeddingModel {
-                    embedding: e.into(),
-                    uuid: doc.id(),
-                    metadata: doc.metadata().clone(),
-                    text: doc.text().to_string(),
-                }
-            }).collect();
+            .map(|(e, doc)| EmbeddingModel {
+                embedding: e.into(),
+                uuid: doc.id(),
+                metadata: doc.metadata().clone(),
+                text: doc.text().to_string(),
+            })
+            .collect();
 
         self.db.add_embeddings(collection_uuid, embeddings)?;
 

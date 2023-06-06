@@ -6,7 +6,7 @@ pub mod sentencetransformer;
 pub trait EmbeddingFunction {
     fn embed<I, S: AsRef<str> + Sync>(&self, texts: I) -> Result<Vec<Embedding>, EmbeddingError>
     where
-    I: IntoIterator<Item = S>;
+        I: IntoIterator<Item = S>;
 }
 
 #[derive(thiserror::Error, Debug)]

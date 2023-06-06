@@ -1,6 +1,9 @@
 use uuid::Uuid;
 
-use crate::{collection::Collection, db::DbError, embeddings::EmbeddingError, Embedding, Document, QueryResult};
+use crate::{
+    collection::Collection, db::DbError, embeddings::EmbeddingError, Document, Embedding,
+    QueryResult,
+};
 
 pub mod local;
 
@@ -15,7 +18,12 @@ pub trait Client {
 
     fn add_documents(&self, collection_uuid: Uuid, docs: &[Document]) -> Result<(), ClientError>;
 
-    fn query(&self, collection_uuid: Uuid, queries: &[&str], k: usize) -> Result<Vec<Vec<QueryResult>>, ClientError>;
+    fn query(
+        &self,
+        collection_uuid: Uuid,
+        queries: &[&str],
+        k: usize,
+    ) -> Result<Vec<Vec<QueryResult>>, ClientError>;
 }
 
 #[derive(thiserror::Error, Debug)]

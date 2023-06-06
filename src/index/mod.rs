@@ -27,7 +27,7 @@ impl Index {
         let idx = Hnsw::new(16, 100, 16, 200, DistCosine {});
         let id_to_uuid = HashMap::new();
         let last_id = 0;
-        let num_elems = 0;
+        let _num_elems = 0;
 
         Self {
             idx,
@@ -64,7 +64,7 @@ impl Index {
                     .into_iter()
                     .map(|neigh| (neigh.get_origin_id(), neigh.distance))
                     .filter_map(|(id, dist)| self.id_to_uuid.get(&id).map(|&uuid| (uuid, dist)))
-                    .filter(|(uuid, dist)| uuids.contains(uuid))
+                    .filter(|(uuid, _dist)| uuids.contains(uuid))
                     .collect()
             })
             .collect()
