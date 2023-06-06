@@ -6,7 +6,7 @@ use std::{
 
 use serde_json::Value;
 
-use crate::{client::Client, index::Index, Document, Documents, Embedding};
+use crate::{client::{Client, ClientError}, index::Index, Document, Embedding, QueryResult};
 
 pub struct Collection {
     pub(crate) client: Box<dyn Client>,
@@ -35,22 +35,20 @@ impl Display for Collection {
 }
 
 impl Collection {
-    pub fn add_embeddings(&mut self, embeddings: &[Embedding]) -> Result<(), CollectionError> {
-        validate_embeddings(embeddings, self.dim)?;
-
-        todo!()
-    }
-
     pub fn add_documents(&mut self, documents: &[Document]) -> Result<(), CollectionError> {
         validate_documents(documents)?;
-        todo!()
+
+        self.client.add_documents(self.uuid, documents)?;
+
+        Ok(())
     }
 
-    pub fn query<'a>(
-        _queries: &'a [&'a str],
-        _filter: Value,
-    ) -> Result<Documents, CollectionError> {
-        todo!()
+    pub fn query_documents(
+        &self,
+        queries: &[&str],
+        k: usize,
+    ) -> Result<Vec<Vec<QueryResult>>, CollectionError> {
+        Ok(self.client.query(self.uuid, queries, k)?)
     }
 }
 
@@ -94,4 +92,37 @@ pub enum CollectionError {
 
     #[error("Invalid dimensions for given set of embeddings")]
     DimensionError,
+
+    #[error("Client operation failed: {0}")]
+    ClientError(#[from] ClientError)
+}
+
+#[cfg(test)]
+mod test {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use crate::{client::{local::LocalClient, Client}, db::{duckdb::DuckDB, Db}, embeddings::sentencetransformer::SentenceTransformerEmbeddings, Document};
+
+    #[test]
+    pub fn test_collection() {
+        let db = DuckDB::new(Default::default()).unwrap();
+        db.init().unwrap();
+
+        let embedding_fn = SentenceTransformerEmbeddings::new();
+        
+        let mut client = LocalClient::init(db, embedding_fn).unwrap();
+
+        let mut collection = client.create_collection("collection1").unwrap();
+
+        let docs = vec![
+            Document { text: "hello world!".to_string(), metadata: json!({}), id: Uuid::new_v4() }
+        ];
+
+        collection.add_documents(&docs).unwrap();
+
+        let res = collection.query_documents(&["hello"], 1).unwrap();
+
+        dbg!(res);
+    }
 }

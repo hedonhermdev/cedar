@@ -1,8 +1,10 @@
-use duckdb::{params, types::FromSql, Config};
+use std::{collections::HashMap, cell::RefCell};
+
+use duckdb::{params, Config};
 
 use uuid::Uuid;
 
-use crate::Embedding;
+use crate::{Embedding, index::{Index, IndexEntry}, QueryResult};
 
 use super::{
     model::{CollectionModel, EmbeddingModel},
@@ -14,14 +16,16 @@ pub type DuckDBConfig = duckdb::Config;
 #[derive(Debug)]
 pub struct DuckDB {
     conn: duckdb::Connection,
+    index: RefCell<HashMap<Uuid, Index>>
 }
 
 impl DuckDB {
     pub fn new(config: Config) -> Result<Self, DbError> {
         let conn = duckdb::Connection::open_in_memory_with_flags(config)
             .map_err(|e| DbError::DbInitError(e.into()))?;
+        let index = HashMap::new().into();
 
-        Ok(DuckDB { conn })
+        Ok(DuckDB { conn, index })
     }
 
     fn init_collections_table(&self) -> Result<(), DbError> {
@@ -41,6 +45,34 @@ impl DuckDB {
         )?;
 
         Ok(())
+    }
+
+    fn get_nearest_neighbors(&self, collection_uuid: Uuid, embeddings: &[Embedding], k: usize) -> Result<Vec<Vec<(Uuid, f32)>>, DbError> {
+
+        let index = self.index.borrow();
+        let idx = index.get(&collection_uuid).expect("index does not exist for collection");
+
+        // TODO: add metadata filtering 
+        let mut stmt = self.conn.prepare("SELECT uuid FROM embeddings WHERE collection_uuid = ?")?;
+
+        let mapped_rows = stmt.query_map([collection_uuid.urn().to_string()], |row| row.get::<_, String>(0))?;
+
+        let mut uuids = Vec::new();
+        for row in mapped_rows {
+            uuids.push(row?.parse().expect("failed to parse uuid from string"))
+        }
+
+        let uuids = idx.get_nearest_neighbors(embeddings, k, &uuids);
+
+        Ok(uuids)
+    }
+
+    fn get_embedding_from_uuid(&self, uuid: Uuid) -> Result<EmbeddingModel, DbError> {
+        let mut stmt = self.conn.prepare("SELECT * FROM embeddings WHERE uuid = ?")?;
+        
+        Ok(stmt.query_row([uuid.urn().to_string()], |row| {
+            EmbeddingModel::try_from(row)
+        })?)
     }
 }
 
@@ -80,6 +112,8 @@ impl Db for DuckDB {
             "INSERT INTO collections (uuid, name, metadata) VALUES (?, ?, ?)",
             params![collection.uuid.urn().to_string(), name, ""],
         )?;
+
+        self.index.borrow_mut().insert(collection.uuid, Index::new());
 
         Ok(collection)
     }
@@ -147,19 +181,29 @@ impl Db for DuckDB {
     ) -> Result<(), DbError> {
         let mut stmt = self.conn.prepare("INSERT INTO embeddings (collection_uuid, uuid, embedding, metadata, text) VALUES (?,?,?,?,?)")?;
 
+        let mut index = self.index.borrow_mut();
+
+        let idx = index.get_mut(&collection_uuid).expect("index does not exist for collection");
+
         embeddings.iter().try_for_each(|e| {
+            let embedding_json = serde_json::ser::to_string(&e.embedding).expect("failed to serialize vec");
             let v = params![
                 collection_uuid.urn().to_string(),
                 e.uuid.urn().to_string(),
-                serde_json::ser::to_vec(&e.embedding).expect("failed to serialize vec"),
+                embedding_json,
                 e.metadata,
                 e.text
             ];
 
+            idx.add(IndexEntry {
+                e: Embedding { e: e.embedding.clone() },
+                uuid: e.uuid,
+            });
             stmt.execute(v)?;
 
             Ok::<(), DbError>(())
         })?;
+
 
         Ok(())
     }
@@ -170,6 +214,48 @@ impl Db for DuckDB {
             .prepare("SELECT COUNT() FROM embeddings WHERE collection_uuid = ?")?;
 
         Ok(stmt.query_row(params![collection_uuid.urn().to_string()], |row| row.get(0))?)
+    }
+
+    fn get_embeddings(
+        &self,
+        collection_uuid: Uuid,
+    ) -> Result<Vec<EmbeddingModel>, DbError> {
+        let mut stmt = self.conn.prepare("SELECT * FROM embeddings WHERE collection_uuid = ?")?;
+
+        let mapped_rows = stmt.query_map([collection_uuid.urn().to_string()], |row| { EmbeddingModel::try_from(row)})?;
+
+        let mut embeddings = Vec::new();
+
+        for row in mapped_rows {
+            embeddings.push(row?);
+        }
+
+        Ok(embeddings)
+    }
+
+    fn query(&self, collection_uuid: Uuid, embeddings: &[Embedding], k: usize) -> Result<Vec<Vec<QueryResult>>, DbError> {
+
+        let neighs = self.get_nearest_neighbors(collection_uuid, embeddings, k)?;
+
+        // let stmt = self.conn.prepare("SELECT * from embeddings WHERE collection_uuid = ? AND uuid = ?");
+
+        let mut res = vec![];
+
+        for row in neighs {
+            let mut row_docs = vec![];
+
+            for (uuid, dist) in row {
+                let emb = self.get_embedding_from_uuid(uuid)?;
+                row_docs.push(QueryResult {
+                    embedding: emb.embedding,
+                    distance: dist,
+                    text: emb.text,
+                });
+            }
+            res.push(row_docs)
+        } 
+
+        Ok(res)
     }
 
     fn reset(&self) -> Result<(), DbError> {
@@ -197,6 +283,27 @@ impl TryFrom<&duckdb::Row<'_>> for CollectionModel {
             name: row.get(1)?,
             metadata: "".into(),
         })
+    }
+}
+
+impl TryFrom<&duckdb::Row<'_>> for EmbeddingModel {
+    type Error = duckdb::Error;
+
+    // "CREATE TABLE embeddings (collection_uuid STRING, uuid STRING, embedding JSON, text STRING, metadata STRING)",
+    fn try_from(row: &duckdb::Row<'_>) -> Result<Self, Self::Error> {
+        let embedding_json: String = row.get(2)?;
+        let embedding = serde_json::from_str(&embedding_json).expect("failed to deserialize vec from db");
+
+        println!("here");
+
+        let model = EmbeddingModel {
+            uuid: row.get::<_, String>(1)?.parse().expect("failed to read uuid from db"),
+            embedding,
+            text: row.get(3)?,
+            metadata: row.get(4)?,
+        };
+
+        Ok(model)
     }
 }
 
@@ -299,7 +406,6 @@ mod tests {
 
         let collection = db.create_collection("collection1").unwrap();
         let collection_uuid = collection.uuid;
-        dbg!(collection_uuid);
 
         assert_eq!(0, db.count_embeddings(collection_uuid).unwrap());
 
@@ -313,5 +419,30 @@ mod tests {
         db.add_embeddings(collection_uuid, vec![e_model]).unwrap();
 
         assert_eq!(1, db.count_embeddings(collection_uuid).unwrap());
+    }
+
+    #[test]
+    pub fn test_get_embeddings() {
+        let db = DuckDB::new(Default::default()).unwrap();
+
+        db.init().unwrap();
+
+        let collection = db.create_collection("collection1").unwrap();
+        let collection_uuid = collection.uuid;
+
+        assert!(db.get_embeddings(collection_uuid).unwrap().is_empty());
+
+        let e_model = EmbeddingModel {
+            embedding: vec![0.0; 384],
+            uuid: Uuid::new_v4(),
+            metadata: serde_json::json!({"id": "102"}),
+            text: "hello, this is a sentence".to_string(),
+        };
+
+        db.add_embeddings(collection_uuid, vec![e_model.clone()]).unwrap();
+
+        let embeddings = db.get_embeddings(collection_uuid).unwrap();
+
+        assert_eq!(embeddings[0], e_model);
     }
 }

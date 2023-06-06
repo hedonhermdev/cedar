@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
+use uuid::Uuid;
+
 use crate::{
     collection::Collection,
-    db::{CollectionModel, Db},
+    db::{CollectionModel, Db, model::EmbeddingModel},
     embeddings::EmbeddingFunction,
     index::Index,
+    Document, Embedding, QueryResult,
 };
 
 use super::{Client, ClientError};
@@ -21,34 +24,6 @@ impl<D: Db, E: EmbeddingFunction> Clone for LocalClient<D, E> {
             db: self.db.clone(),
             embedding_fn: self.embedding_fn.clone(),
         }
-    }
-}
-
-pub struct LocalClientBuilder<D: Db, E: EmbeddingFunction> {
-    db: Option<D>,
-    embedding_fn: Option<E>,
-}
-
-impl<D: Db, E: EmbeddingFunction> LocalClientBuilder<D, E> {
-    pub fn new() -> Self {
-        Self {
-            db: None,
-            embedding_fn: None,
-        }
-    }
-
-    pub fn db(mut self, db: D) -> Self {
-        self.db = Some(db);
-        self
-    }
-
-    pub fn embedding_fn(mut self, f: E) -> Self {
-        self.embedding_fn = Some(f);
-        self
-    }
-
-    pub fn build(self) -> LocalClient<D, E> {
-        todo!()
     }
 }
 
@@ -92,6 +67,41 @@ where
             .into_iter()
             .map(|c| c.name)
             .collect())
+    }
+
+    fn embed(&self, texts: &[&str]) -> Result<Vec<Embedding>, ClientError> {
+        Ok(self.embedding_fn.embed(texts)?)
+    }
+
+    fn add_documents(&self, collection_uuid: Uuid, docs: &[Document]) -> Result<(), ClientError> {
+        let embeddings = self
+            .embedding_fn
+            .embed(docs.iter().map(|doc| doc.text()))?
+            .into_iter()
+            .zip(docs.iter())
+            .map(|(e, doc)| {
+                EmbeddingModel {
+                    embedding: e.into(),
+                    uuid: doc.id(),
+                    metadata: doc.metadata().clone(),
+                    text: doc.text().to_string(),
+                }
+            }).collect();
+
+        self.db.add_embeddings(collection_uuid, embeddings)?;
+
+        Ok(())
+    }
+
+    fn query(
+        &self,
+        collection_uuid: Uuid,
+        queries: &[&str],
+        k: usize,
+    ) -> Result<Vec<Vec<QueryResult>>, ClientError> {
+        let embeddings = self.embed(queries)?;
+
+        Ok(self.db.query(collection_uuid, &embeddings, k)?)
     }
 }
 

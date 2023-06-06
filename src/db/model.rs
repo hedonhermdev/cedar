@@ -7,6 +7,7 @@ pub struct CollectionModel {
     pub(crate) metadata: serde_json::Value,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct EmbeddingModel {
     pub(crate) embedding: Vec<f32>,
     pub(crate) uuid: Uuid,

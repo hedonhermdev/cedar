@@ -1,4 +1,6 @@
-use crate::{collection::Collection, db::DbError};
+use uuid::Uuid;
+
+use crate::{collection::Collection, db::DbError, embeddings::EmbeddingError, Embedding, Document, QueryResult};
 
 pub mod local;
 
@@ -8,6 +10,12 @@ pub trait Client {
     fn get_collection(&self, name: &str) -> Result<Option<Collection>, ClientError>;
 
     fn list_collection_names(&self) -> Result<Vec<String>, ClientError>;
+
+    fn embed(&self, texts: &[&str]) -> Result<Vec<Embedding>, ClientError>;
+
+    fn add_documents(&self, collection_uuid: Uuid, docs: &[Document]) -> Result<(), ClientError>;
+
+    fn query(&self, collection_uuid: Uuid, queries: &[&str], k: usize) -> Result<Vec<Vec<QueryResult>>, ClientError>;
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -17,4 +25,7 @@ pub enum ClientError {
 
     #[error("Failed to perform db operation: {0}")]
     DbError(#[from] DbError),
+
+    #[error("Embedding function failed to embed texts: {0}")]
+    EmbeddingFnError(#[from] EmbeddingError),
 }

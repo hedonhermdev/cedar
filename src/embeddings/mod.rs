@@ -4,7 +4,9 @@ pub mod openai;
 pub mod sentencetransformer;
 
 pub trait EmbeddingFunction {
-    fn embed<S: AsRef<str> + Sync>(self, texts: &[S]) -> Result<Vec<Embedding>, EmbeddingError>;
+    fn embed<I, S: AsRef<str> + Sync>(&self, texts: I) -> Result<Vec<Embedding>, EmbeddingError>
+    where
+    I: IntoIterator<Item = S>;
 }
 
 #[derive(thiserror::Error, Debug)]

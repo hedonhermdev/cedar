@@ -77,4 +77,9 @@ impl Document {
     }
 }
 
-pub type Documents<'a> = &'a [Document];
+#[derive(Debug)]
+pub struct QueryResult {
+    pub text: String,
+    pub distance: f32,
+    pub embedding: Vec<f32>,
+}

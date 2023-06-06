@@ -1,8 +1,10 @@
 pub mod duckdb;
-mod model;
+pub(crate) mod model;
 
 pub use model::CollectionModel;
 use uuid::Uuid;
+
+use crate::{Embedding, QueryResult};
 
 use self::model::EmbeddingModel;
 
@@ -28,6 +30,14 @@ pub trait Db {
         embeddings: Vec<EmbeddingModel>,
     ) -> Result<(), DbError>;
     fn count_embeddings(&self, collection_uuid: Uuid) -> Result<usize, DbError>;
+
+    fn get_embeddings(
+        &self,
+        collection_uuid: Uuid,
+    ) -> Result<Vec<EmbeddingModel>, DbError>;
+
+    fn query(&self, collection_uuid: Uuid, embeddings: &[Embedding], k: usize) -> Result<Vec<Vec<QueryResult>>, DbError>;
+
 }
 
 #[derive(thiserror::Error, Debug)]
