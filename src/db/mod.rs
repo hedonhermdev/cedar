@@ -1,4 +1,7 @@
 pub mod duckdb;
+
+pub use self::duckdb::DuckDB;
+
 pub(crate) mod model;
 
 pub use model::CollectionModel;

@@ -1,7 +1,9 @@
 use crate::Embedding;
 
-pub mod openai;
-pub mod sentencetransformer;
+pub(crate) mod openai;
+pub(crate) mod sentencetransformer;
+
+pub use sentencetransformer::SentenceTransformerEmbeddings;
 
 pub trait EmbeddingFunction {
     fn embed<I, S: AsRef<str> + Sync>(&self, texts: I) -> Result<Vec<Embedding>, EmbeddingError>

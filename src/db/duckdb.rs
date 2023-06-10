@@ -276,6 +276,7 @@ impl Db for DuckDB {
                     embedding: emb.embedding,
                     distance: dist,
                     text: emb.text,
+                    uuid,
                 });
             }
             res.push(row_docs)

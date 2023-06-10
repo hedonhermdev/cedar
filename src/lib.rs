@@ -1,3 +1,4 @@
+use db::DbError;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -42,9 +43,9 @@ impl From<Vec<f32>> for Embedding {
 }
 
 pub struct Document {
-    text: String,
-    metadata: Value,
-    id: Uuid,
+    pub text: String,
+    pub metadata: Value,
+    pub id: Uuid,
 }
 
 impl Document {
@@ -79,6 +80,7 @@ impl Document {
 
 #[derive(Debug)]
 pub struct QueryResult {
+    pub uuid: Uuid,
     pub text: String,
     pub distance: f32,
     pub embedding: Vec<f32>,

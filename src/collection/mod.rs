@@ -51,6 +51,7 @@ impl Collection {
         &self,
         queries: &[&str],
         k: usize,
+        _where: serde_json::Value
     ) -> Result<Vec<Vec<QueryResult>>, CollectionError> {
         Ok(self.client.query(self.uuid, queries, k)?)
     }
@@ -132,7 +133,7 @@ mod test {
 
         collection.add_documents(&docs).unwrap();
 
-        let res = collection.query_documents(&["hello"], 1).unwrap();
+        let res = collection.query_documents(&["hello"], 1, json!({ "source": "notion" })).unwrap();
         assert_eq!(res[0][0].text, docs[0].text);
 
         dbg!(res);

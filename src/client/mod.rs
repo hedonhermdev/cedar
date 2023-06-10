@@ -7,6 +7,8 @@ use crate::{
 
 pub mod local;
 
+pub use local::LocalClient;
+
 pub trait Client {
     fn create_collection(&mut self, name: &str) -> Result<Collection, ClientError>;
 
