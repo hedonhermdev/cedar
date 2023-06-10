@@ -3,6 +3,7 @@ use crate::Embedding;
 pub(crate) mod openai;
 pub(crate) mod sentencetransformer;
 
+pub use openai::OpenAIEmbeddingFunction;
 pub use sentencetransformer::SentenceTransformerEmbeddings;
 
 pub trait EmbeddingFunction {
