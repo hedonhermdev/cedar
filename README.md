@@ -46,7 +46,9 @@ To use cedar in your project, start with adding it to your `Cargo.toml`. (Standa
 
 ```toml
 [dependencies]
-cedar = "0.1.0"
+cedar-db = "0.1.0"
+uuid = { version = "1.3.2", features = ["v4", "fast-rng"] }
+serde_json = "1.0.96"
 ```
 
 `cedar` uses the `tch-rs` bindings for PyTorch. To set up the bindings, follow these steps:
