@@ -83,4 +83,5 @@ pub struct QueryResult {
     pub text: String,
     pub distance: f32,
     pub embedding: Vec<f32>,
+    pub metadata: serde_json::Value,
 }

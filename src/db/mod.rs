@@ -40,6 +40,7 @@ pub trait Db {
         &self,
         collection_uuid: Uuid,
         embeddings: &[Embedding],
+        _where: serde_json::Value,
         k: usize,
     ) -> Result<Vec<Vec<QueryResult>>, DbError>;
 

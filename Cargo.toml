@@ -9,7 +9,7 @@ repository = "https://github.com/hedonhermdev"
 readme = "README.md"
 
 [dependencies]
-duckdb = { version = "0.7.1", features = ["serde_json"]}
+duckdb = { version = "0.8.0", features = [ "serde_json", "json" ]}
 rust-bert = "0.21.0"
 thiserror = "1.0.40"
 tch = "0.13"

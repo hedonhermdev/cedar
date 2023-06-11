@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -94,11 +95,12 @@ where
         &self,
         collection_uuid: Uuid,
         queries: &[&str],
+        _where: Value,
         k: usize,
     ) -> Result<Vec<Vec<QueryResult>>, ClientError> {
         let embeddings = self.embed(queries)?;
 
-        Ok(self.db.query(collection_uuid, &embeddings, k)?)
+        Ok(self.db.query(collection_uuid, &embeddings, _where, k)?)
     }
 }
 
