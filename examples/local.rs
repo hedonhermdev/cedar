@@ -1,8 +1,8 @@
-use cedar::{
+use cedar_db::{
     client::Client,
     client::LocalClient,
     db::{Db, DuckDB},
-    embeddings::OpenAIEmbeddingFunction,
+    embeddings::SentenceTransformerEmbeddings,
     Document,
 };
 use serde_json::json;
@@ -14,10 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     db.init()?;
 
     // 2. initialize embedding function (could be OpenAI, Chrome, etc)
-    // let embedding_fn = SentenceTransformerEmbeddings::new();
-    let embedding_fn = OpenAIEmbeddingFunction::new(
-        "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".to_string(),
-    );
+    let embedding_fn = SentenceTransformerEmbeddings::new();
 
     // 3. initialize client
     let mut client = LocalClient::init(db, embedding_fn)?;
