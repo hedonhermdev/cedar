@@ -40,8 +40,15 @@ pub trait Db {
         &self,
         collection_uuid: Uuid,
         embeddings: &[Embedding],
+        _where: serde_json::Value,
         k: usize,
     ) -> Result<Vec<Vec<QueryResult>>, DbError>;
+
+    fn format_where(
+        &self,
+        where_map: &serde_json::Map<String, serde_json::Value>,
+        result: &mut Vec<String>,
+    ) -> Result<(), DbError>;
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -54,4 +61,13 @@ pub enum DbError {
 
     #[error("{0}")]
     UpdateError(String),
+
+    #[error("{0}")]
+    OperandError(String),
+
+    #[error("{0}")]
+    OperatorError(String),
+
+    #[error("{0}")]
+    InvalidValueError(String),
 }

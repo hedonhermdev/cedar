@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use serde_json::{json};
+use serde_json::json;
 
 use crate::Embedding;
 
@@ -48,8 +48,10 @@ impl EmbeddingFunction for OpenAIEmbeddingFunction {
             .client
             .post(OPENAI_EMBEDDING_ENDPOINT)
             .json(&payload)
-            .send().map_err(|e| EmbeddingError{ err: e.into() })?
-            .json().map_err(|e| EmbeddingError{ err: e.into() })?;
+            .send()
+            .map_err(|e| EmbeddingError { err: e.into() })?
+            .json()
+            .map_err(|e| EmbeddingError { err: e.into() })?;
 
         Ok(res.data.into_iter().map(|e| e.into()).collect())
     }

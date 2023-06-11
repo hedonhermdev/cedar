@@ -45,10 +45,10 @@ impl Collection {
     pub fn query_documents(
         &self,
         queries: &[&str],
-        k: usize,
         _where: serde_json::Value,
+        k: usize,
     ) -> Result<Vec<Vec<QueryResult>>, CollectionError> {
-        Ok(self.client.query(self.uuid, queries, k)?)
+        Ok(self.client.query(self.uuid, queries, _where, k)?)
     }
 }
 
@@ -104,17 +104,15 @@ mod test {
 
         let docs = vec![Document {
             text: "hello world!".to_string(),
-            metadata: json!({}),
+            metadata: json!({"source": "notion"}),
             id: Uuid::new_v4(),
         }];
 
         collection.add_documents(&docs).unwrap();
 
         let res = collection
-            .query_documents(&["hello"], 1, json!({ "source": "notion" }))
+            .query_documents(&["hello"], serde_json::json!({ "source": "notion" }), 1)
             .unwrap();
         assert_eq!(res[0][0].text, docs[0].text);
-
-        dbg!(res);
     }
 }

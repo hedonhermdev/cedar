@@ -1,3 +1,4 @@
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -24,6 +25,7 @@ pub trait Client {
         &self,
         collection_uuid: Uuid,
         queries: &[&str],
+        _where: Value,
         k: usize,
     ) -> Result<Vec<Vec<QueryResult>>, ClientError>;
 }

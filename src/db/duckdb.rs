@@ -14,6 +14,8 @@ use super::{
     Db, DbError,
 };
 
+use serde_json::{json, Value};
+
 pub type DuckDBConfig = duckdb::Config;
 
 #[derive(Debug)]
@@ -33,7 +35,7 @@ impl DuckDB {
 
     fn init_collections_table(&self) -> Result<(), DbError> {
         self.conn.execute(
-            "CREATE TABLE collections (uuid STRING, name STRING, metadata STRING)",
+            "CREATE TABLE collections (uuid STRING, name STRING, metadata JSON)",
             [],
         )?;
 
@@ -43,17 +45,33 @@ impl DuckDB {
     fn init_embeddings_table(&self) -> Result<(), DbError> {
         self.conn
         .execute(
-            "CREATE TABLE embeddings (collection_uuid STRING, uuid STRING, embedding JSON, text STRING, metadata STRING)",
+            "CREATE TABLE embeddings (collection_uuid STRING, uuid STRING, embedding JSON, text STRING, metadata JSON)",
             []
         )?;
 
         Ok(())
     }
 
+    fn create_where_clause(&self, _where: Value, collection_uuid: Uuid) -> Result<String, DbError> {
+        let mut clauses = vec![format!("collection_uuid = '{}'", collection_uuid.urn().to_string())];
+
+        self.format_where(
+            _where.as_object().ok_or_else(|| {
+                DbError::InvalidValueError(format!("invalid where clause: {_where}"))
+            })?,
+            &mut clauses,
+        )?;
+        
+        let where_str = clauses.join(" AND ");
+
+        Ok(format!("WHERE {where_str}"))
+    }
+
     fn get_nearest_neighbors(
         &self,
         collection_uuid: Uuid,
         embeddings: &[Embedding],
+        _where: Value,
         k: usize,
     ) -> Result<Vec<Vec<(Uuid, f32)>>, DbError> {
         let index = self.index.borrow();
@@ -61,12 +79,15 @@ impl DuckDB {
             .get(&collection_uuid)
             .expect("index does not exist for collection");
 
-        // TODO: add metadata filtering
+        let where_clause = self.create_where_clause(_where, collection_uuid)?;
+        
+        let sql = &format!("SELECT uuid FROM embeddings {where_clause}");
+
         let mut stmt = self
             .conn
-            .prepare("SELECT uuid FROM embeddings WHERE collection_uuid = ?")?;
+            .prepare(sql)?;
 
-        let mapped_rows = stmt.query_map([collection_uuid.urn().to_string()], |row| {
+        let mapped_rows = stmt.query_map([], |row| {
             row.get::<_, String>(0)
         })?;
 
@@ -120,12 +141,12 @@ impl Db for DuckDB {
         let collection = CollectionModel {
             uuid: Uuid::new_v4(),
             name: name.to_string(),
-            metadata: "".into(),
+            metadata: json!({}),
         };
 
         self.conn.execute(
             "INSERT INTO collections (uuid, name, metadata) VALUES (?, ?, ?)",
-            params![collection.uuid.urn().to_string(), name, ""],
+            params![collection.uuid.urn().to_string(), name, collection.metadata],
         )?;
 
         self.index
@@ -259,9 +280,10 @@ impl Db for DuckDB {
         &self,
         collection_uuid: Uuid,
         embeddings: &[Embedding],
+        _where: Value,
         k: usize,
     ) -> Result<Vec<Vec<QueryResult>>, DbError> {
-        let neighs = self.get_nearest_neighbors(collection_uuid, embeddings, k)?;
+        let neighs = self.get_nearest_neighbors(collection_uuid, embeddings, _where, k)?;
 
         // let stmt = self.conn.prepare("SELECT * from embeddings WHERE collection_uuid = ? AND uuid = ?");
 
@@ -276,6 +298,7 @@ impl Db for DuckDB {
                     embedding: emb.embedding,
                     distance: dist,
                     text: emb.text,
+                    metadata: emb.metadata,
                     uuid,
                 });
             }
@@ -283,6 +306,166 @@ impl Db for DuckDB {
         }
 
         Ok(res)
+    }
+
+    fn format_where(
+        &self,
+        where_map: &serde_json::Map<String, serde_json::Value>,
+        result: &mut Vec<String>,
+    ) -> Result<(), DbError> {
+        if where_map.keys().next().is_none() {
+            return Ok(())
+        }
+        let operator = where_map.keys().next().unwrap().clone();
+        match operator.as_str() {
+            "$contains" => {
+                let temp = where_map.get(&operator).unwrap().as_str().unwrap();
+                result.push(format!("position(document, '{}') > 0", temp));
+            }
+            "$or" | "$and" => {
+                let mut all_subresults = vec![];
+                let subresults = where_map.get(&operator).unwrap().as_array().unwrap();
+
+                for subwhere in subresults {
+                    let mut subresult = vec![];
+                    let _ = self.format_where(subwhere.as_object().unwrap(), &mut subresult)?;
+                    all_subresults.push(subresult[0].clone());
+                }
+
+                if operator == "$or" {
+                    result.push(format!("({})", all_subresults.join(" OR ")));
+                }
+
+                if operator == "$and" {
+                    result.push(format!("({})", all_subresults.join(" AND ")));
+                }
+            }
+            _ => {
+                for (key, value) in where_map {
+                    match value {
+                        Value::Number(val) => {
+                            if val.is_i64() {
+                                let actual_val = val.as_i64().unwrap();
+                                result.push(format!(
+                                    " CAST(json_extract(metadata,'$.{}') AS INT) = {}",
+                                    key, actual_val
+                                ));
+                            } else if val.is_f64() {
+                                let actual_val = val.as_f64().unwrap();
+                                result.push(format!(
+                                    " CAST(json_extract(metadata,'$.{}') AS DOUBLE) = {}",
+                                    key, actual_val
+                                ));
+                            }
+                        }
+                        Value::String(val) => {
+                            result.push(format!(
+                                " json_extract_string(metadata,'$.{}') = '{}'",
+                                key, val
+                            ));
+                        }
+                        Value::Object(val) => {
+                            let (operator, operand) = val.iter().next().unwrap();
+
+                            match operator.as_str() {
+                                "$eq" => {
+                                    if let Value::String(op_str) = operand {
+                                        result.push(format!(
+                                            " json_extract_string(metadata,'$.{}') = '{}'",
+                                            key, op_str
+                                        ));
+                                    } else if let Value::Number(op_num) = operand {
+                                        result.push(format!(
+                                            " CAST(json_extract(metadata,'$.{}') AS DOUBLE) = {}",
+                                            key, op_num
+                                        ));
+                                    } else {
+                                        return Err(DbError::OperandError(format!(
+                                            "Operand {} not valid for $eq",
+                                            operand
+                                        )));
+                                    }
+                                }
+                                "$gt" => {
+                                    result.push(format!(
+                                        " CAST(json_extract(metadata,'$.{}') AS DOUBLE) > {}",
+                                        key, operand
+                                    ));
+                                }
+                                "$gte" => {
+                                    result.push(format!(
+                                        " CAST(json_extract(metadata,'$.{}') AS DOUBLE) >= {}",
+                                        key, operand
+                                    ));
+                                }
+                                "$lt" => {
+                                    result.push(format!(
+                                        " CAST(json_extract(metadata,'$.{}') AS DOUBLE) < {}",
+                                        key, operand
+                                    ));
+                                }
+                                "$lte" => {
+                                    result.push(format!(
+                                        " CAST(json_extract(metadata,'$.{}') AS DOUBLE) <= {}",
+                                        key, operand
+                                    ));
+                                }
+                                "$ne" => {
+                                    if let Value::String(op_str) = operand {
+                                        result.push(format!(
+                                            " json_extract_string(metadata,'$.{}') != '{}'",
+                                            key, op_str
+                                        ));
+                                    } else if let Value::Number(op_num) = operand {
+                                        result.push(format!(
+                                            " json_extract_string(metadata,'$.{}') != '{}'",
+                                            key, op_num
+                                        ));
+                                    } else {
+                                        return Err(DbError::OperandError(format!(
+                                            "Operand {} not valid for $ne",
+                                            operand
+                                        )));
+                                    }
+                                }
+                                _ => {
+                                    return Err(DbError::OperatorError(format!("Invalid operator: expected one of $eq, $ne, $lt, $lte, $gt, $gte, found {}", operator)));
+                                }
+                            }
+                        }
+                        Value::Array(val) => {
+                            let mut all_subresults = vec![];
+                            for subwhere in val {
+                                let mut subresults = vec![];
+                                let _ = self
+                                    .format_where(subwhere.as_object().unwrap(), &mut subresults)?;
+                                all_subresults.push(subresults[0].clone());
+                            }
+
+                            match key.as_str() {
+                                "$and" => {
+                                    result.push(format!("({})", all_subresults.join(" AND ")));
+                                }
+                                "$or" => {
+                                    result.push(format!("({})", all_subresults.join(" OR ")));
+                                }
+                                _ => {
+                                    return Err(DbError::OperatorError(format!(
+                                        "Invalid operator: expected one of $and, $or, found {}",
+                                        key
+                                    )));
+                                }
+                            }
+                        }
+                        _ => {
+                            return Err(DbError::InvalidValueError(format!("Invalid value type")));
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn reset(&self) -> Result<(), DbError> {
@@ -308,7 +491,7 @@ impl TryFrom<&duckdb::Row<'_>> for CollectionModel {
         Ok(CollectionModel {
             uuid: Uuid::parse_str(&uuid).expect("invalid UUID found in database"),
             name: row.get(1)?,
-            metadata: "".into(),
+            metadata: row.get(2)?,
         })
     }
 }
@@ -476,5 +659,41 @@ mod tests {
         let embeddings = db.get_embeddings(collection_uuid).unwrap();
 
         assert_eq!(embeddings[0], e_model);
+    }
+
+    #[test]
+    pub fn test_query_fmt() {
+        use crate::client::Client;
+
+        let db = DuckDB::new(Default::default()).unwrap();
+        db.init().unwrap();
+
+        let embedding_fn = crate::embeddings::SentenceTransformerEmbeddings::new();
+
+        let mut client = crate::client::LocalClient::init(db, embedding_fn).unwrap();
+
+        let mut collection = client.create_collection("collection1").unwrap();
+
+        let docs = &[
+            crate::Document {
+                text: "this is about macbooks".to_string(),
+                metadata: serde_json::json!({ "source": "laptops" }),
+                id: Uuid::new_v4(),
+            },
+            crate::Document {
+                text: "lychees are better than mangoes".to_string(),
+                metadata: serde_json::json!({ "source": "facts" }),
+                id: Uuid::new_v4(),
+            },
+        ];
+        collection.add_documents(docs).unwrap();
+
+        let res = collection
+            .query_documents(
+                &["which one is the better fruit?"],
+                serde_json::json!({ "source": "facts" }),
+                1,
+            )
+            .unwrap();
     }
 }

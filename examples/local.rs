@@ -2,7 +2,7 @@ use cedar::{
     client::Client,
     client::LocalClient,
     db::{Db, DuckDB},
-    embeddings::{OpenAIEmbeddingFunction},
+    embeddings::OpenAIEmbeddingFunction,
     Document,
 };
 use serde_json::json;
@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     collection.add_documents(docs)?;
 
-    let res = collection.query_documents(&["what is the best fruit?"], 1, json!({}))?;
+    let res = collection.query_documents(&["what is the best fruit?"], json!({}), 1)?;
 
     println!("text: {:?}", res[0][0].text);
     println!("score: {:?}", 1.0 - res[0][0].distance);

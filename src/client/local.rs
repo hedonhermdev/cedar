@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -52,7 +53,10 @@ where
     }
 
     fn get_collection(&self, name: &str) -> Result<Option<Collection>, ClientError> {
-        Ok(self.db.get_collection(name)?.map(|model| collection_model_to_instance(self.clone(), model)))
+        Ok(self
+            .db
+            .get_collection(name)?
+            .map(|model| collection_model_to_instance(self.clone(), model)))
     }
 
     fn list_collection_names(&self) -> Result<Vec<String>, ClientError> {
@@ -91,11 +95,12 @@ where
         &self,
         collection_uuid: Uuid,
         queries: &[&str],
+        _where: Value,
         k: usize,
     ) -> Result<Vec<Vec<QueryResult>>, ClientError> {
         let embeddings = self.embed(queries)?;
 
-        Ok(self.db.query(collection_uuid, &embeddings, k)?)
+        Ok(self.db.query(collection_uuid, &embeddings, _where, k)?)
     }
 }
 
