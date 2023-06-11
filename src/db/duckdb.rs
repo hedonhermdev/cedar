@@ -14,6 +14,8 @@ use super::{
     Db, DbError,
 };
 
+use serde_json::Value;
+
 pub type DuckDBConfig = duckdb::Config;
 
 #[derive(Debug)]
@@ -285,6 +287,167 @@ impl Db for DuckDB {
         Ok(res)
     }
 
+    fn format_where(
+        &self,
+        where_map: &serde_json::Map<String, serde_json::Value>,
+        result: &mut Vec<String>,
+    ) -> Result<(), DbError> {
+        let operator = where_map.keys().next().unwrap().clone();
+        match operator.as_str() {
+            "$contains" => {
+                let temp = where_map.get(&operator).unwrap().as_str().unwrap();
+                result.push(format!("position(document, '{}') > 0", temp));
+            }
+            "$or" | "$and" => {
+                let mut all_subresults = vec![];
+                let subresults = where_map.get(&operator).unwrap().as_array().unwrap();
+
+                for subwhere in subresults {
+                    let mut subresult = vec![];
+                    let _ = self.format_where(subwhere.as_object().unwrap(), &mut subresult)?;
+                    all_subresults.push(subresult[0].clone());
+                }
+
+                if operator == "$or" {
+                    result.push(format!("({})", all_subresults.join(" OR ")));
+                }
+
+                if operator == "$and" {
+                    result.push(format!("({})", all_subresults.join(" AND ")));
+                }
+            }
+            _ => {
+                for (key, value) in where_map {
+                    let has_key_and = |clause: &str| -> String {
+                        format!("(JSONHas(metadata, '{}') = 1 AND {})", key, clause)
+                    };
+
+                    match value {
+                        Value::Number(val) => {
+                            if val.is_i64() {
+                                let actual_val = val.as_i64().unwrap();
+                                result.push(has_key_and(&format!(
+                                    "JSONExtractInt(metadata, '{}') = {}",
+                                    key, actual_val
+                                )));
+                            } else if val.is_f64() {
+                                let actual_val = val.as_f64().unwrap();
+                                result.push(has_key_and(&format!(
+                                    "JSONExtractFloat(metadata, '{}') = {}",
+                                    key, actual_val
+                                )));
+                            }
+                        }
+                        Value::String(val) => {
+                            result.push(has_key_and(&format!(
+                                "JSONExtractString(metadata, '{}') = {}",
+                                key, val
+                            )));
+                        }
+                        Value::Object(val) => {
+                            let (operator, operand) = val.iter().next().unwrap();
+
+                            match operator.as_str() {
+                                "$eq" => {
+                                    if let Value::String(op_str) = operand {
+                                        result.push(has_key_and(&format!(
+                                            "JSONExtractString(metadata, '{}') == '{}'",
+                                            key, op_str
+                                        )));
+                                    } else if let Value::Number(op_num) = operand {
+                                        result.push(has_key_and(&format!(
+                                            "JSONExtractFloat(metadata, '{}') == '{}'",
+                                            key, op_num
+                                        )));
+                                    } else {
+                                        return Err(DbError::OperandError(format!(
+                                            "Operand {} not valid for $eq",
+                                            operand
+                                        )));
+                                    }
+                                }
+                                "$gt" => {
+                                    result.push(has_key_and(&format!(
+                                        "JSONExtractFloat(metadata, '{}') > {}",
+                                        key, operand
+                                    )));
+                                }
+                                "$gte" => {
+                                    result.push(has_key_and(&format!(
+                                        "JSONExtractFloat(metadata, '{}') >= {}",
+                                        key, operand
+                                    )));
+                                }
+                                "$lt" => {
+                                    result.push(has_key_and(&format!(
+                                        "JSONExtractFloat(metadata, '{}') < {}",
+                                        key, operand
+                                    )));
+                                }
+                                "$lte" => {
+                                    result.push(has_key_and(&format!(
+                                        "JSONExtractFloat(metadata, '{}') >= {}",
+                                        key, operand
+                                    )));
+                                }
+                                "$ne" => {
+                                    if let Value::String(op_str) = operand {
+                                        result.push(has_key_and(&format!(
+                                            "JSONExtractString(metadata, '{}') != '{}'",
+                                            key, op_str
+                                        )));
+                                    } else if let Value::Number(op_num) = operand {
+                                        result.push(has_key_and(&format!(
+                                            "JSONExtractFloat(metadata, '{}') != {}",
+                                            key, op_num
+                                        )));
+                                    } else {
+                                        return Err(DbError::OperandError(format!(
+                                            "Operand {} not valid for $ne",
+                                            operand
+                                        )));
+                                    }
+                                }
+                                _ => {
+                                    return Err(DbError::OperatorError(format!("Invalid operator: expected one of $eq, $ne, $lt, $lte, $gt, $gte, found {}", operator)));
+                                }
+                            }
+                        }
+                        Value::Array(val) => {
+                            let mut all_subresults = vec![];
+                            for subwhere in val {
+                                let mut subresults = vec![];
+                                let _ = self
+                                    .format_where(subwhere.as_object().unwrap(), &mut subresults)?;
+                                all_subresults.push(subresults[0].clone());
+                            }
+
+                            match key.as_str() {
+                                "$and" => {
+                                    result.push(format!("({})", all_subresults.join(" AND ")));
+                                }
+                                "$or" => {
+                                    result.push(format!("({})", all_subresults.join(" OR ")));
+                                }
+                                _ => {
+                                    return Err(DbError::OperatorError(format!(
+                                        "Invalid operator: expected one of $and, $or, found {}",
+                                        key
+                                    )));
+                                }
+                            }
+                        }
+                        _ => {
+                            return Err(DbError::InvalidValueError(format!("Invalid value type")));
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn reset(&self) -> Result<(), DbError> {
         todo!()
     }
@@ -476,5 +639,38 @@ mod tests {
         let embeddings = db.get_embeddings(collection_uuid).unwrap();
 
         assert_eq!(embeddings[0], e_model);
+    }
+
+    #[test]
+    pub fn test_query_fmt() {
+        use crate::client::Client;
+
+        let db = DuckDB::new(Default::default()).unwrap();
+        db.init().unwrap();
+        
+        let embedding_fn = crate::embeddings::SentenceTransformerEmbeddings::new();
+
+        let mut client = crate::client::LocalClient::init(db, embedding_fn).unwrap();
+
+        let mut collection = client.create_collection("collection1").unwrap();
+
+        let docs = &[
+            crate::Document {
+                text: "this is about macbooks".to_string(),
+                metadata: serde_json::json!({ "source": "laptops" }),
+                id: Uuid::new_v4(),
+            },
+            crate::Document {
+                text: "lychees are better than mangoes".to_string(),
+                metadata: serde_json::json!({ "source": "facts" }),
+                id: Uuid::new_v4(),
+            },
+        ];
+        collection.add_documents(docs).unwrap();
+
+        let k = 1;
+        let res = collection.query_documents(&["which one is the better fruit?"], k, serde_json::json!({ "source": "facts" })).unwrap();
+        panic!("{}", format!("{:?}", res));
+        assert_eq!("hello", "hello");
     }
 }

@@ -2,7 +2,7 @@ use cedar::{
     client::Client,
     client::LocalClient,
     db::{Db, DuckDB},
-    embeddings::{OpenAIEmbeddingFunction},
+    embeddings::OpenAIEmbeddingFunction,
     Document,
 };
 use serde_json::json;
