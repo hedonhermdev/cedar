@@ -1,8 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use cedar::embeddings::EmbeddingFunction;
-
-use cedar::embeddings::sentencetransformer::SentenceTransformerEmbeddings;
+use cedar::embeddings::{EmbeddingFunction, SentenceTransformerEmbeddings};
 
 pub fn sentence_transformer_benchmark(c: &mut Criterion) {
     c.bench_function("sentence transformer", |b| {

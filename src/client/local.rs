@@ -6,7 +6,6 @@ use crate::{
     collection::Collection,
     db::{model::EmbeddingModel, CollectionModel, Db},
     embeddings::EmbeddingFunction,
-    index::Index,
     Document, Embedding, QueryResult,
 };
 
@@ -36,8 +35,7 @@ where
         Ok(Self {
             db: Arc::new(db),
             embedding_fn: Arc::new(embedding_fn),
-        }
-        .into())
+        })
     }
 }
 
@@ -54,10 +52,7 @@ where
     }
 
     fn get_collection(&self, name: &str) -> Result<Option<Collection>, ClientError> {
-        Ok(match self.db.get_collection(name)? {
-            Some(model) => Some(collection_model_to_instance(self.clone(), model)),
-            None => None,
-        })
+        Ok(self.db.get_collection(name)?.map(|model| collection_model_to_instance(self.clone(), model)))
     }
 
     fn list_collection_names(&self) -> Result<Vec<String>, ClientError> {
@@ -111,10 +106,8 @@ fn collection_model_to_instance<D: Db + 'static, E: EmbeddingFunction + 'static>
     let client = Box::new(client);
     Collection {
         client,
-        index: Index::new(),
         uuid: model.uuid,
         name: model.name,
-        dim: None,
     }
 }
 

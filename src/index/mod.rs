@@ -45,7 +45,7 @@ impl Index {
 
     pub fn nearest_k(&self, embedding: Embedding, k: usize) {
         // TODO: magic number 30
-        self.idx.search(&embedding.get(), k, 30);
+        self.idx.search(embedding.get(), k, 30);
     }
 
     pub fn get_nearest_neighbors(

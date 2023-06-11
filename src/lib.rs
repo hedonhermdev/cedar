@@ -1,4 +1,3 @@
-use db::DbError;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -30,9 +29,9 @@ impl Embedding {
     }
 }
 
-impl Into<Vec<f32>> for Embedding {
-    fn into(self) -> Vec<f32> {
-        self.e
+impl From<Embedding> for Vec<f32> {
+    fn from(value: Embedding) -> Self {
+        value.e
     }
 }
 

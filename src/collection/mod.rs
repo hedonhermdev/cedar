@@ -6,16 +6,13 @@ use std::{
 
 use crate::{
     client::{Client, ClientError},
-    index::Index,
-    Document, Embedding, QueryResult,
+    Document, QueryResult,
 };
 
 pub struct Collection {
     pub(crate) client: Box<dyn Client>,
-    pub(crate) index: Index,
     pub(crate) uuid: uuid::Uuid,
     pub(crate) name: String,
-    pub(crate) dim: Option<usize>,
 }
 
 impl Debug for Collection {
@@ -59,24 +56,6 @@ fn validate_documents(docs: &[Document]) -> Result<(), CollectionError> {
     has_dups(docs.iter().map(|d| d.id))
         .then_some(())
         .ok_or(CollectionError::DuplicateError)
-}
-
-fn validate_embeddings(
-    embeddings: &[Embedding],
-    dim: Option<usize>,
-) -> Result<(), CollectionError> {
-    match dim {
-        Some(dim) => embeddings
-            .iter()
-            .all(|e| e.dim() == dim)
-            .then_some(())
-            .ok_or(CollectionError::DimensionError),
-        None => embeddings
-            .iter()
-            .all(|e| e.dim() == embeddings[0].dim())
-            .then_some(())
-            .ok_or(CollectionError::DimensionError),
-    }
 }
 
 fn has_dups<T>(iter: T) -> bool

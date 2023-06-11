@@ -36,7 +36,7 @@ impl EmbeddingFunction for SentenceTransformerEmbeddings {
     {
         self.model
             .encode(&texts.into_iter().collect::<Vec<_>>())
-            .map(|v| v.into_iter().map(|x| Into::<Embedding>::into(x)).collect())
+            .map(|v| v.into_iter().map(Into::<Embedding>::into).collect())
             .map_err(|e| EmbeddingError { err: e.into() })
     }
 }
@@ -51,7 +51,7 @@ mod test {
         let docs = vec!["hello, this is a sentence"];
         let embeddingfn = SentenceTransformerEmbeddings::new();
 
-        let embeddings = &embeddingfn.embed(&docs).unwrap()[0];
+        let embeddings = &embeddingfn.embed(docs).unwrap()[0];
         assert_eq!(embeddings.dim(), 384);
     }
 }
