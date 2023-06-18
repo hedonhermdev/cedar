@@ -6,6 +6,7 @@ pub mod collection;
 pub mod db;
 pub mod embeddings;
 pub mod index;
+pub mod server;
 
 pub struct Embedding {
     e: Vec<f32>,
