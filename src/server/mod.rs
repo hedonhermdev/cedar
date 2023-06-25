@@ -1,12 +1,10 @@
-use crate::db::DuckDB;
+use crate::client::Client;
+use std::sync::Arc;
 
 pub(crate) mod warp_server;
 
-pub struct Server {
+#[derive(Debug)]
+pub struct Server<C: Client> {
     pub port: u16,
-    pub db : Database,
-}
-
-pub enum Database {
-    DuckDB(DuckDB),
+    pub client: Arc<C>,
 }
